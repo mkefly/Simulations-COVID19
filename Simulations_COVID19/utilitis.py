@@ -18,7 +18,15 @@ import io
 from Simulations_COVID19 import utilitis
 
 class data_loader:
+    """Loads the data from Johns Hopkins COVID19 repository, calculates the Growth-factor (GF) & rate (GR)
+       can plot the data and output html content.
+    """    
     def __init__(self, countries = None):
+        """[Constructor]
+        
+        Keyword Arguments:
+            countries {[list]} -- [list of countries we are interested in analysing] (default: {None})
+        """        
         self.countries = countries
         self.data_read = {}
         for field in ['Confirmed','Recovered','Deaths']:

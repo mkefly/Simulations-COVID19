@@ -14,7 +14,7 @@ from Simulations_COVID19 import utilitis
 from .utilitis import data_loader as data_loader
 
 class phenom_simulator(data_loader):
-    def __init__(self, countries, phenom_constrains = [1, 1, 100, 100, 10000, 20000], data_table = None):
+    def __init__(self, countries, phenom_constrains = [1, 1, 60, 70, 8000, 20000], data_table = None):
         
         self.countries = countries
         
