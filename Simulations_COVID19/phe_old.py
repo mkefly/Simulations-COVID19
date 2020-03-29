@@ -14,17 +14,24 @@ from Simulations_COVID19 import utilitis
 from .utilitis import data_loader as data_loader
 
 class phenom_simulator(data_loader):
-    def __init__(self, countries, phenom_constrains = [1, 2, 100, 70, 15000, 20000], data_table = None, load_flag = 'neherlab', get_geo_loc = False):
-
+    def __init__(self, countries, phenom_constrains = [1, 2, 100, 70, 15000, 20000], data_table = None, load_flag = 'neherlab'):
+        
         self.countries = countries
-
+        
         self.trace = {}
-
+        
         self.post_pred = {}
 
+        self.phenom_constrains = {'c1M':phenom_constrains[0],
+                          'c1s':phenom_constrains[1],
+                          'c2M':phenom_constrains[2],
+                          'c2s':phenom_constrains[3],
+                          'c3M':phenom_constrains[4],
+                          'c3s':phenom_constrains[5]}
+
         self.load_flag = load_flag
-        self.path = './covid19_scenarios_data/case-counts/'
-        self.get_geo_loc = get_geo_loc
+        self.path = '../covid19_scenarios_data/case-counts/'
+        self.get_geo_loc = True
         self.location = 'classic'
 
         if data_table is not None:
@@ -38,18 +45,6 @@ class phenom_simulator(data_loader):
                     self.recover_data(field)
             self.get_data_from_object(self.load_data(self.countries))
             self.data_read = []
-
-        self.models = {}
-        self.traces = {}       
-        self.post_preds = {}
-
-        self.phenom_constrains = {'c1m':0.0000000000001,
-                        'c1M':10,
-                        'c2m':len(self.data['deaths'])*1/4,
-                        'c2M':len(self.data['deaths'])*4,
-                        'c3m':np.max(self.data['deaths']),
-                        'c3M':np.max(self.data['deaths'])*10}
-
 
     def get_data_from_object(self, data_table):
         countries_list = self.countries
@@ -68,62 +63,58 @@ class phenom_simulator(data_loader):
         return self.data
         
     def phenom_model(self, method, field = 'deaths'):
-        self.models[method] = {}
         for i, country in enumerate(self.countries):
+            self.models = {} 
+            self.models[method] = {}
             with pm.Model() as model:
                 print('phenom_constrains:', self.phenom_constrains,'\n')
 
                 const = {}
                 for cn in ['c1','c2','c3']:
-                    const[cn] = pm.Uniform(cn, self.phenom_constrains[cn+'m'], self.phenom_constrains[cn+'M'])
+                    grp = pm.Normal(cn+'grp', self.phenom_constrains[cn+'M'], self.phenom_constrains[cn+'s'])
                     # Group variance
-                    #grp_sigma = pm.HalfNormal(cn+'grp_sigma', self.phenom_constrains[cn+'s'])
+                    grp_sigma = pm.HalfNormal(cn+'grp_sigma', self.phenom_constrains[cn+'s'])
                     # Individual intercepts
-                    #const[cn] = pm.Normal(cn,  mu=grp, sigma=grp_sigma,  shape=len(self.countries))
+                    const[cn] = pm.Normal(cn,  mu=grp, sigma=grp_sigma,  shape=len(self.countries))
 
-                sigma = pm.HalfNormal('sigma', 100., shape=1)
+                sigma = pm.HalfNormal('sigma', 10000., shape=len(self.countries))
 
                 temp = self.data[self.data['Country'] == country][field].values
-                
-                Nrepeat = 10
-                T = np.arange(0, len(temp))
-                T = np.append(T,np.repeat(T[-Nrepeat:],Nrepeat*3))
-                temp = np.append(temp,np.repeat(temp[-Nrepeat:],Nrepeat*3))
-                
-                x = pm.Data("x",  T)
+                x = pm.Data("x",  np.arange(0, len(temp)))
                 cases = pm.Data("y",  temp)
 
                 # Likelihood
                 if method == 'log-model':
                     pm.NegativeBinomial(
                         country, 
-                        const['c3']*(1/(1 + np.exp(-(const['c1'] * (-const['c2'] + x))))),
-                        sigma, 
+                        const['c3'][i]*(1/(1 + np.exp(-(const['c1'][i] * (-const['c2'][i] + x))))),
+                        sigma[i], 
                         observed=cases)
                     
                 if method == 'gompertz-model':
-                    pm.Poisson(
+                    pm.NegativeBinomial(
                         country, 
-                        const['c3']*np.exp(-np.exp(-const['c1']*(x-const['c2']))),
+                        const['c3'][i]*np.exp(-np.exp(-const['c1'][i]*(x-const['c2'][i]))),
+                        sigma[i], 
                         observed=cases)
-                    
             self.models[method][country] = model
-        return self.models
-
-
+        return models
+                        
     def sample_model(self, method = 'log-model', field = 'deaths', **kwargs):
-        self.models = self.phenom_model(method, field)
-        self.traces[method] = {}
-        for i, country in enumerate(self.countries):
-            self.traces[method][country] = pm.sample_smc(model = self.models[method][country], **kwargs)
-            #marginal_likelihood = model.marginal_log_likelihood
-        return self.models, self.traces #, marginal_likelihood
-    
+            models = self.phenom_model(method, field)
+            self.traces = {} 
+            self.traces[method] = {}
+            for i, country in enumerate(self.countries):
+                self.traces[method][country] = pm.sample_smc(model = models[method][country], **kwargs)
+                #marginal_likelihood = model.marginal_log_likelihood
+            return models, self.traces #, marginal_likelihood
+        
     def sample_posterior_predictive_model(self, method = 'log-model', field = 'deaths', samples = 1000, number_days = 100, **kwargs):
-        self.models, _ = self.sample_model(method = method, field = field, **kwargs)
+        models, _ = self.sample_model(method = method, field = field, **kwargs)
+        self.post_preds = {}
         self.post_preds[method] = {}
         for country in self.countries:
-            with self.models[method][country]:
+            with model:
 
                 # Update data so that we get predictions into the future
                 x_data = np.arange(0, number_days)
@@ -134,7 +125,7 @@ class phenom_simulator(data_loader):
                 # Sample posterior predictive
                 self.post_preds[method][country] = pm.sample_posterior_predictive(self.traces[method][country], samples = samples)
         return self.post_preds
-
+        
     def res_values(self, values, flag_res):
         res = values
         if flag_res:
@@ -172,7 +163,7 @@ class phenom_simulator(data_loader):
                         ind = np.argwhere(self.data[self.data['Country'] == country]['Date'] == key)[0][0]
                         plt.plot([ind,ind],[0,30000], value[1], label = cn+'-'+ value[0], color=colors[i])
         
-        number_days = int(self.post_preds[method][country].shape[1])
+        number_days = int(self.post_pred[method+'-'+field][country].shape[1])
         Date = self.data[self.data['Country'] == country]['Date'].iloc[0]
         Date = Date[0:-2]+'20'+Date[-2:]
         list_dates = utilitis.date_list(Date, number_days)
@@ -186,7 +177,7 @@ class phenom_simulator(data_loader):
         plt.ylim(ylim)
         plt.xlim(xlim)
         return fig
-
+        
     def plot_country(self, method, country, field = 'deaths', time_field = 'time', flag_res = False, color = 'r'):
         plt.scatter(self.data[self.data['Country'] == country][time_field], self.res_values(self.data[self.data['Country'] == country][field], flag_res), color=color                   
                     , edgecolors='black', linewidth=0.3,
@@ -195,7 +186,7 @@ class phenom_simulator(data_loader):
         plt.scatter(self.data[self.data['Country'] == country][time_field].iloc[-1], self.res_values(self.data[self.data['Country'] == country][field].iloc[-1], flag_res), color=color
                     , edgecolors='white', linewidth=1
                     , label = country+' today',zorder=200, marker = '*', s = 100)
-        plt.plot(np.arange(0, self.post_preds[method][country][country].shape[1]), self.res_values(self.post_preds[method][country][country], flag_res).T, alpha=0.2, color=color)
+        plt.plot(np.arange(0, self.post_pred[method+'-'+field][country].shape[1]), self.res_values(self.post_pred[method+'-'+field][country], flag_res).T, alpha=0.2, color=color)
 
 
     def traces_to_multivariateGrid(self, method, field = 'deaths', colors_dic =False):
@@ -209,7 +200,7 @@ class phenom_simulator(data_loader):
         for k, cn in enumerate([['c1','c2'],['c3','c1'],['c3','c2']]):
             dfs = []
             for i, country in enumerate(self.countries):
-                df = pd.DataFrame(np.append(self.traces[method][cn[0]][:, i],self.trace[method][cn[1]][:, i]).reshape(2,-1).T, columns=[clabel[cn[0]],clabel[cn[1]]])
+                df = pd.DataFrame(np.append(self.trace[method+'-'+field][cn[0]][:, i],self.trace[method+'-'+field][cn[1]][:, i]).reshape(2,-1).T, columns=[clabel[cn[0]],clabel[cn[1]]])
                 df['country'] = country
                 dfs += [df]
             df=pd.concat(dfs)
@@ -218,3 +209,4 @@ class phenom_simulator(data_loader):
 
 
 
+            

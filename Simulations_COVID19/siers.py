@@ -11,8 +11,7 @@ from scipy.optimize import minimize
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 class siers_simulator:
-    def __init__(self, country, delta, gammaR, gammaD, mu, beta0, alpha, beta_t0, omega, epsilon, population, bounds, Dates = None):
-        self.country = country
+    def __init__(self, data, delta, gammaR, gammaD, mu, beta0, alpha, beta_t0, omega, epsilon, population, bounds, Dates = None):
         self.Dates = Dates
         # Total population, N.
         self.N = population 
@@ -34,32 +33,13 @@ class siers_simulator:
         self.alpha = alpha
         self.beta_t0 = beta_t0
         self.tbeta_flag = 0
-        
+        self.data = data
+
         self.bounds = bounds
 
         # A grid of time points (in days)
         self.t = np.linspace(0, 200, 200)
 
-    def recover_data(self, file,country):
-        data = pd.DataFrame()
-        url = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-'+file+'.csv'
-        data_read = pd.read_csv(url, error_bad_lines=False)
-        value = data_read[data_read['Country/Region'].isin([country])].drop(['Province/State',
-                                                    'Country/Region','Lat','Long'], axis=1).sum(axis=0)
-        
-        data[file] = value.values
-        days = len(data[file])
-        data['Days'] = np.linspace(0,days-1,days)
-        data['date'] = value.index.values
-        return data
-
-    def load_data(self):
-        self.data = pd.DataFrame()
-        self.data = self.recover_data('Confirmed', self.country)
-        for cn in ['Recovered','Deaths']:
-            self.data[cn] = self.recover_data(cn, self.country)[cn]
-        self.data = self.data[:-1]
-        return self.data
     
     def deriv_theta(self, y, t, theta):
 
@@ -120,7 +100,6 @@ class siers_simulator:
     def plot_results(self, xlim = [24,200], ylim = [0,20000] ,N = 0):
         plt.style.use('dark_background')
         self.fig, self.ax = plt.subplots(1, 1, figsize=[17, 7])
-        plt.title(self.country)
         self.plot_update(xlim = xlim, ylim = ylim ,N = N)
     
     def plot_update(self, xlim = [24,200], ylim = [0,20000] ,N = 0):
@@ -138,9 +117,9 @@ class siers_simulator:
 
         #.grid(b=True, which='major', c='w', lw=2, ls='-')
         
-        self.ax.scatter(self.data['Days'], self.data['Deaths'], label = 'real Deaths')
-        self.ax.scatter(self.data['Days'], self.data['Recovered'], label = 'real Infected')
-        self.ax.scatter(self.data['Days'], self.data['Confirmed']-self.data['Recovered']-self.data['Deaths'], label = 'real Infected')
+        self.ax.scatter(self.data['time'], self.data['deaths'], label = 'real Deaths')
+        self.ax.scatter(self.data['time'], self.data['recovered'], label = 'real Infected')
+        self.ax.scatter(self.data['time'], self.data['cases']-self.data['recovered']-self.data['deaths'], label = 'real Infected')
         
         if not (self.Dates is None):
             for key, value in Dates[self.country].items():
@@ -163,7 +142,7 @@ class siers_simulator:
     def train(self):
         print(self.bounds)
         self.tbeta_flag = 0
-        self.t = self.data['Days']
+        self.t = np.linspace(0, len(self.data['time']), len(self.data['time'])) 
         self.optimal = minimize(self.loss, 
             method = 'L-BFGS-B',
             bounds = self.bounds,
@@ -190,13 +169,13 @@ class siers_simulator:
 
         self.integrate()
         
-        Infected = self.data['Confirmed'].values - self.data['Recovered'].values - self.data['Deaths'].values
+        Infected = self.data['cases'].values - self.data['recovered'].values - self.data['deaths'].values
         
         lA = np.mean((self.t*(self.IR + self.ID - Infected))**10)**(1/10)
         
         l11 = np.sqrt(np.mean(self.t*((self.IR + self.ID - Infected))**2))
-        l21 = np.sqrt(np.mean(self.t*((self.R - self.data['Recovered'].values))**2))
-        l31 = np.sqrt(np.mean(self.t*((self.D - self.data['Deaths'].values))**2))
+        l21 = np.sqrt(np.mean(self.t*((self.R - self.data['recovered'].values))**2))
+        l31 = np.sqrt(np.mean(self.t*((self.D - self.data['deaths'].values))**2))
         
         return np.sqrt((l31)**2 + ((l21))**2+ ((l11))**2) 
     
