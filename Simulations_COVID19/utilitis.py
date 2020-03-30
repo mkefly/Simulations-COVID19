@@ -16,6 +16,8 @@ import os
 import requests
 import io
 from Simulations_COVID19 import utilitis
+from scipy import interpolate
+
 
 class data_loader:
     """Loads the data from Johns Hopkins COVID19 repository, calculates the Growth-factor (GF) & rate (GR)
@@ -70,9 +72,12 @@ class data_loader:
                     
                     if location == country:
                         df_temp['location'] = 'Full Country'
-                        
-                    #else:
-                    #    location = file[:-4].split("-")
+                    
+                    for cn in ['deaths','cases','recovered','hospitalized','ICU']:
+                        df_temp[cn] = np.nan_to_num(interpolate_nans(np.array(df_temp[cn].values)))
+
+                    df_temp['time'] = df_temp['time'].str.slice(0,10)
+
                     if sum(df_temp.columns == 'country'):
                         df = pd.concat([df,df_temp],sort=False)
 
@@ -299,3 +304,12 @@ def get_version_information():
     except EnvironmentError:
         print("No version information file '.version' found")
         
+def interpolate_nans(A):
+    #interpolate to fill nan values
+    
+    inds = np.arange(A.shape[0])
+    good = np.where(np.isfinite(A))
+    if len(good) >=2:
+        f = interpolate.interp1d(inds[good], A[good],bounds_error=False)
+        A = np.where(np.isfinite(A),A,f(inds))
+    return A

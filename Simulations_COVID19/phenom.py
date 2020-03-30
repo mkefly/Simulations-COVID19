@@ -93,18 +93,6 @@ class phenom_simulator(data_loader):
                 T = np.append(T,np.repeat(T[-Nrepeat:],Nrepeat*3))
                 temp = np.append(temp,np.repeat(temp[-Nrepeat:],Nrepeat*3))
                 
-                def fill_nan(A):
-                    '''
-                    interpolate to fill nan values
-                    '''
-                    inds = np.arange(A.shape[0])
-                    good = np.where(np.isfinite(A))
-                    f = interpolate.interp1d(inds[good], A[good],bounds_error=False)
-                    B = np.where(np.isfinite(A),A,f(inds))
-                    return B
-                    
-                temp = np.nan_to_num(fill_nan(np.array(temp)))
-                                                    
                 x = pm.Data("x",  T)
                 cases = pm.Data("y",  temp)
 
