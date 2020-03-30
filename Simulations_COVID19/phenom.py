@@ -12,6 +12,7 @@ from scipy.optimize import minimize
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from Simulations_COVID19 import utilitis
 from .utilitis import data_loader as data_loader
+from scipy import interpolate
 
 class phenom_simulator(data_loader):
     def __init__(self, countries, phenom_constrains = [1, 2, 100, 70, 15000, 20000], data_table = None, load_flag = 'neherlab', get_geo_loc = False):
@@ -65,33 +66,45 @@ class phenom_simulator(data_loader):
             with pm.Model() as model:
                 
                 mask = self.data['Country'] == country
+                
                 # TODO: Add if not external
-                self.phenom_constrains = {'c1m':0.0000000000001,
+                self.phenom_constrains = {
+                                'c1m':0.0000000000001,
                                 'c1M':10,
-                                'c2m':len(self.data[mask]['deaths'])*1/4, # or add 0
+                                'c2m':np.argmax(self.data[mask]['deaths'])*1/3, # or add 0
                                 'c2M':len(self.data[mask]['deaths'])*4,
                                 'c3m':np.max(self.data[mask]['deaths']), 
                                 'c3M':np.max(self.data[mask]['deaths'])*10}
-
+                if method == 'gompertz-model':
+                    self.phenom_constrains['c2m'] = 1
+                    
                 const = {}
                 for cn in ['c1','c2','c3']:
                     const[cn] = pm.Uniform(cn, self.phenom_constrains[cn+'m'], self.phenom_constrains[cn+'M'])
-                    # Group variance
-                    #grp_sigma = pm.HalfNormal(cn+'grp_sigma', self.phenom_constrains[cn+'s'])
-                    # Individual intercepts
-                    #const[cn] = pm.Normal(cn,  mu=grp, sigma=grp_sigma,  shape=len(self.countries))
 
                 sigma = pm.HalfNormal('sigma', 100., shape=1)
 
                 temp = self.data[mask][field].values
 
-                print(self.phenom_constrains)
+                
 
                 Nrepeat = 10
                 T = np.arange(0, len(temp))
                 T = np.append(T,np.repeat(T[-Nrepeat:],Nrepeat*3))
                 temp = np.append(temp,np.repeat(temp[-Nrepeat:],Nrepeat*3))
                 
+                def fill_nan(A):
+                    '''
+                    interpolate to fill nan values
+                    '''
+                    inds = np.arange(A.shape[0])
+                    good = np.where(np.isfinite(A))
+                    f = interpolate.interp1d(inds[good], A[good],bounds_error=False)
+                    B = np.where(np.isfinite(A),A,f(inds))
+                    return B
+                    
+                temp = np.nan_to_num(fill_nan(np.array(temp)))
+                                                    
                 x = pm.Data("x",  T)
                 cases = pm.Data("y",  temp)
 
@@ -106,7 +119,7 @@ class phenom_simulator(data_loader):
                 if method == 'gompertz-model':
                     pm.Poisson(
                         country, 
-                        const['c3']*np.exp(-np.exp(-const['c1']*(x-const['c2']))),
+                        const['c3']*np.exp(-np.exp(-const['c2']*(x-const['c1']))),
                         observed=cases)
                     
             self.models[method][country] = model

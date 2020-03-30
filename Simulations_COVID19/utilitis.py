@@ -38,50 +38,41 @@ class data_loader:
             loc_dic = {} 
         else:
             loc_dic = pd.read_json(path_out+'locations.json')
+            
         for r, d, f in os.walk(path):
             for file in f:
                 if '.tsv' in file:
-                    country = os.path.basename(os.path.normpath(r))
-                    location = file[:-4]
+                    country = os.path.basename(os.path.normpath(r)).capitalize()
+                    location = file[:-4].split("-")
+                    location = location[len(location)-1]
+                    location = location.capitalize()
                     df_temp = pd.read_csv(r+'/'+file, header=3, delimiter = '\t', na_values='')    
+
                     df_temp['longitude'] = None
                     df_temp['latitude'] = None
-                    if location == "World":
-                        df_World = pd.read_csv(r+'/'+file, header=3, delimiter = '\t', na_values='')  
-
-                        for i in df_temp['location'].unique():
-                            if get_geo_loc:
-                                time.sleep(0.5)
-                                try:
-                                    locat = geolocator.geocode(i, timeout=None)                
-                                    loc_dic[i] = [locat.longitude,locat.latitude]
-                                    df_temp.loc[df_temp['location'].values == i,'longitude'] = locat.longitude
-                                    df_temp.loc[df_temp['location'].values == i,'latitude'] = locat.latitude                              
-                                except:
-                                    loc_dic[i] = [None,None]
-                            for k in ['deaths','cases']:
-                                df_temp = self.add_growth(df_temp, k)
-                            
-                        df_temp['longitude'] = [loc_dic[i][0] for i in df_temp.location]
-                        df_temp['latitude'] = [loc_dic[i][1] for i in df_temp.location]
-                        df_temp['country'] = df_temp['location']
-                        df_temp['location'] = 'Full Country' 
-                        df_temp = df_temp.copy()
-
-                    elif location == "cds":
-                        df_cds = df_temp.copy()
-
-                    elif country != location:    
-                        for k in ['deaths','cases']:
-                            df_temp = self.add_growth(df_temp, k)
-                        df_temp['country'] = country
-                        df_temp['location'] = location 
-                        if get_geo_loc:
-                            time.sleep(0.5)
-                            locat = geolocator.geocode(location, timeout=None)     
+                    
+                    if country == "ecdc":
+                        country = location
+                        
+                    df_temp['country'] = country
+                    df_temp['location'] = location 
+                    
+                    if get_geo_loc:
+                        time.sleep(0.5)
+                        locat = geolocator.geocode(location, timeout=None)    
+                        if locat: 
                             loc_dic[location] = [locat.longitude,locat.latitude]
-                        df_temp['longitude'] = loc_dic[location][0]
-                        df_temp['latitude'] = loc_dic[location][1]
+                        else:
+                            loc_dic[location] = [None,None]
+                            
+                    df_temp['longitude'] = loc_dic[location][0]
+                    df_temp['latitude'] = loc_dic[location][1]
+                    
+                    if location == country:
+                        df_temp['location'] = 'Full Country'
+                        
+                    #else:
+                    #    location = file[:-4].split("-")
                     if sum(df_temp.columns == 'country'):
                         df = pd.concat([df,df_temp],sort=False)
 

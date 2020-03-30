@@ -25,11 +25,6 @@ path_out = './COVID19_dash/assets/data/'
 dataloader = SCovid19.data_loader() 
 dataloader.collect_data_neherlab(path, get_geo_loc = False) 
 
-file = 'cases_world.json' 
-dataloader.data.reset_index().drop(['index'], axis = 1).to_json(path+file) 
-pd.read_json(path+file, orient='columns') 
-
-phenom_constrains = [0.000000000001, 2, 80, 150, 5000, 30000]
 phenomsirs = SCovid19.phenom_simulator(countries = list_countries, data_table = dataloader.data)
 for method in ['log-model', 'gompertz-model']:
     _ = phenomsirs.sample_posterior_predictive_model(method = method, field = 'deaths', samples = samples, number_days = number_days, n_steps=n_steps)
