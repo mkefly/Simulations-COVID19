@@ -43,14 +43,6 @@ class phenom_simulator(data_loader):
         self.traces = {}       
         self.post_preds = {}
 
-        self.phenom_constrains = {'c1m':0.0000000000001,
-                        'c1M':10,
-                        'c2m':len(self.data['deaths'])*1/4,
-                        'c2M':len(self.data['deaths'])*4,
-                        'c3m':np.max(self.data['deaths']),
-                        'c3M':np.max(self.data['deaths'])*10}
-
-
     def get_data_from_object(self, data_table):
         countries_list = self.countries
         if type(countries_list) is not list:
@@ -71,7 +63,15 @@ class phenom_simulator(data_loader):
         self.models[method] = {}
         for i, country in enumerate(self.countries):
             with pm.Model() as model:
-                print('phenom_constrains:', self.phenom_constrains,'\n')
+                
+                mask = self.data['Country'] == country
+                # TODO: Add if not external
+                self.phenom_constrains = {'c1m':0.0000000000001,
+                                'c1M':10,
+                                'c2m':len(self.data[mask]['deaths'])*1/4, # or add 0
+                                'c2M':len(self.data[mask]['deaths'])*4,
+                                'c3m':np.max(self.data[mask]['deaths']), 
+                                'c3M':np.max(self.data[mask]['deaths'])*10}
 
                 const = {}
                 for cn in ['c1','c2','c3']:
@@ -83,8 +83,10 @@ class phenom_simulator(data_loader):
 
                 sigma = pm.HalfNormal('sigma', 100., shape=1)
 
-                temp = self.data[self.data['Country'] == country][field].values
-                
+                temp = self.data[mask][field].values
+
+                print(self.phenom_constrains)
+
                 Nrepeat = 10
                 T = np.arange(0, len(temp))
                 T = np.append(T,np.repeat(T[-Nrepeat:],Nrepeat*3))

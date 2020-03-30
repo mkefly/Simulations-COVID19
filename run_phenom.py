@@ -9,7 +9,7 @@ import pandas as pd
 samples = 300 
 number_days = 200 
 n_steps = 25
-list_countries = ['Spain']#,'Italy']#,'US','France','United Kingdom','Germany','Netherlands'] 
+list_countries = ['Spain','Italy','United States of America','France','United Kingdom','Germany','Netherlands'] 
 
 folder_html = './tables/' 
 folder_images = './images/' 
@@ -21,6 +21,7 @@ Dates = {'Spain':{'3/8/20':['M8','-.'],'3/14/20':['Lockdown','--']}, 'Italy':{'3
 
 ####### LOAD ####### 
 path='./covid19_scenarios_data/case-counts/' 
+path_out = './COVID19_dash/assets/data/'
 dataloader = SCovid19.data_loader() 
 dataloader.collect_data_neherlab(path, get_geo_loc = False) 
 
@@ -29,8 +30,7 @@ dataloader.data.reset_index().drop(['index'], axis = 1).to_json(path+file)
 pd.read_json(path+file, orient='columns') 
 
 phenom_constrains = [0.000000000001, 2, 80, 150, 5000, 30000]
-phenomsirs = SCovid19.phenom_simulator(countries = list_countries, phenom_constrains = phenom_constrains, data_table = dataloader.data) 
-for method in ['log-model','gompertz-model']: 
-	_ = phenomsirs.sample_posterior_predictive_model(method = method, field = 'deaths', samples = samples, number_days = number_days, n_steps=n_steps) 
-	phenomsirs.save_table(path = path, file = 'phenom.json')
-
+phenomsirs = SCovid19.phenom_simulator(countries = list_countries, data_table = dataloader.data)
+for method in ['log-model', 'gompertz-model']:
+    _ = phenomsirs.sample_posterior_predictive_model(method = method, field = 'deaths', samples = samples, number_days = number_days, n_steps=n_steps)
+phenomsirs.save_table(path = path_out, file = 'phenom.json')

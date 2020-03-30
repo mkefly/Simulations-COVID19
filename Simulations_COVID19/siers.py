@@ -166,7 +166,7 @@ class siers_simulator:
 
     def loss(self, point):
         self.E0, self.delta, self.gammaR, self.gammaD, self.mu, self.beta0, self.alpha, self.beta_t0  = point
-
+        print(self.E0, self.delta, self.gammaR, self.gammaD, self.mu, self.beta0, self.alpha, self.beta_t0)
         self.integrate()
         
         Infected = self.data['cases'].values - self.data['recovered'].values - self.data['deaths'].values

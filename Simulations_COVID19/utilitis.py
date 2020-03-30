@@ -88,7 +88,6 @@ class data_loader:
         if get_geo_loc:
             pd.DataFrame(loc_dic).to_json(path_out+'locations.json')
         self.data = df.reset_index().drop(['index'],axis=1)
-        print(self.data[self.data.country == 'Italy'])
         pd.DataFrame(self.data).to_json(path_out+'cases_world.json')
         return self.data
                     
