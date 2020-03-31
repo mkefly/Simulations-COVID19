@@ -11,13 +11,15 @@ from datetime import timedelta, datetime
 #from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
 #init_notebook_mode(connected=True) 
 import time
-from geopy.geocoders import Nominatim
+from geopy.geocoders import Nominatim, options
 import os
 import requests
 import io
 from Simulations_COVID19 import utilitis
 from scipy import interpolate
 
+options.default_timeout = 20
+geolocator = Nominatim(user_agent="COVID19v2")
 
 class data_loader:
     """Loads the data from Johns Hopkins COVID19 repository, calculates the Growth-factor (GF) & rate (GR)
@@ -34,17 +36,13 @@ class data_loader:
 
     def collect_data_neherlab(self, path='./covid19_scenarios_data/case-counts/', path_out="./COVID19_dash/assets/data/", get_geo_loc = False):
         df = pd.DataFrame()
-        
-        if get_geo_loc:
-            geolocator = Nominatim(user_agent="COVID19")
-            loc_dic = {} 
-        else:
-            loc_dic = pd.read_json(path_out+'locations.json')
+        loc_dic = pd.read_json(path_out+'locations.json')
             
         for r, d, f in os.walk(path):
             for file in f:
                 if '.tsv' in file:
                     country = os.path.basename(os.path.normpath(r)).capitalize()
+                    
                     location = file[:-4].split("-")
                     location = location[len(location)-1]
                     location = location.capitalize()
@@ -53,14 +51,13 @@ class data_loader:
                     df_temp['longitude'] = None
                     df_temp['latitude'] = None
                     
-                    if country == "ecdc":
+                    if country == "Ecdc":
                         country = location
                         
                     df_temp['country'] = country
                     df_temp['location'] = location 
-                    
-                    if get_geo_loc:
-                        time.sleep(0.5)
+                                        
+                    if location not in loc_dic.keys():
                         locat = geolocator.geocode(location, timeout=None)    
                         if locat: 
                             loc_dic[location] = [locat.longitude,locat.latitude]
@@ -72,14 +69,26 @@ class data_loader:
                     
                     if location == country:
                         df_temp['location'] = 'Full Country'
-                    
-                    for cn in ['deaths','cases','recovered','hospitalized','ICU']:
-                        df_temp[cn] = np.nan_to_num(interpolate_nans(np.array(df_temp[cn].values)))
+                        
+                    if country == 'Unitedstates':
+                        df_temp['country'] = 'USA'
 
+                    # Ensure monotonicity and interpolate nans
+                    df_temp = clean_monotonicity_interpol_nans(df_temp)   
+                    # Eliminate compodent that are above day of precission i.e hours...
                     df_temp['time'] = df_temp['time'].str.slice(0,10)
 
                     if sum(df_temp.columns == 'country'):
                         df = pd.concat([df,df_temp],sort=False)
+                        
+        df_temp = df[df.location.isin(['Full Country'])].groupby(['country','time']).max().sort_values(['time']).reset_index().groupby(['time']).sum().reset_index()
+        df_temp['country'] = 'The World'
+        df_temp['location'] = 'countries in the table'     
+        df_temp['longitude'] = 6.395626
+        df_temp['latitude'] = 14.056159
+        df_temp = clean_monotonicity_interpol_nans(df_temp) 
+        
+        df = pd.concat([df,df_temp],sort=False)
 
         if get_geo_loc:
             pd.DataFrame(loc_dic).to_json(path_out+'locations.json')
@@ -140,11 +149,6 @@ class data_loader:
                 Growthr = Growthr.T.shift(1, axis = 1).T
                 Growthr = Growthr.clip(0, 1)
                 Growthr.iloc[0:N] = np.nan
-                
-                #Growthf = (Data1-Data0)/(Data2 - Data1 + epsilon)
-                #Growthf.columns = Growthf.columns.str.replace(field,field+'-GF')
-                #Growthf = Growthf.T.shift(2, axis = 1).T
-                #data = pd.concat([data,Growthr,Growthf],axis=1)#.head(-1)
                 
                 data = pd.concat([data,Growthr],axis=1)
                 
@@ -215,7 +219,8 @@ class data_loader:
                 Countries += [Country for i in range(N)]
                 model += [method for i in range(N)]
                 times += date_list(self.data[(self.data['Country'] == Country)].time.head(1).values[0], N)
-                datas += [np.pad(self.data[(self.data['Country'] == Country)][field], (0, N-len(self.data[(self.data['Country'] == Country)][field])), 'constant', constant_values=(0, np.nan))]
+                temp = self.data[(self.data.Country == Country)].groupby(['time']).max()[field].values
+                datas += [np.pad(temp, (0, N-len(temp)), 'constant', constant_values=(0, np.nan))]
         data['vmean'] = np.concatenate(vmean)
         data['vmin'] = np.concatenate(vmin)
         data['vmax'] = np.concatenate(vmax)
@@ -304,12 +309,11 @@ def get_version_information():
     except EnvironmentError:
         print("No version information file '.version' found")
         
-def interpolate_nans(A):
-    #interpolate to fill nan values
-    
-    inds = np.arange(A.shape[0])
-    good = np.where(np.isfinite(A))
-    if len(good) >=2:
-        f = interpolate.interp1d(inds[good], A[good],bounds_error=False)
-        A = np.where(np.isfinite(A),A,f(inds))
-    return A
+        
+def clean_monotonicity_interpol_nans(df_temp):
+    for cn in ['deaths','cases','recovered']: #,'hospitalized','ICU']:
+        A = df_temp[cn].interpolate().values
+        A[-10:] = np.maximum.accumulate(A[-10:])
+        df_temp[cn] =  np.minimum.accumulate(A[::-1])[::-1]
+        
+    return df_temp

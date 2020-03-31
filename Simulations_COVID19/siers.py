@@ -11,7 +11,7 @@ from scipy.optimize import minimize
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 class siers_simulator:
-    def __init__(self, data, delta, gammaR, gammaD, mu, beta0, alpha, beta_t0, omega, epsilon, population, bounds, Dates = None):
+    def __init__(self, data, delta, gammaR, gammaD, mu, beta0, alpha, beta_t0, omega, epsilon, population, bounds = None, Dates = None):
         self.Dates = Dates
         # Total population, N.
         self.N = population 
@@ -19,7 +19,7 @@ class siers_simulator:
         self.E0, self.IR0, self.ID0, self.R0, self.D0 = 0, 0, 0, 0, 0
 
         # Everyone else, S0, is susceptible to infection initially.
-        self.S0 = self.N - self.E0 - self.IR0 - self.ID0 - self.R0 + self.D0
+        self.S0 = self.N - self.E0 - self.IR0 - self.ID0 - self.R0 - self.D0
         
         # Contact rate, beta, and mean recovery rate, gamma, (in 1/days).
         
@@ -38,7 +38,7 @@ class siers_simulator:
         self.bounds = bounds
 
         # A grid of time points (in days)
-        self.t = np.linspace(0, 200, 200)
+        self.t = np.linspace(0, 199, 200)
 
     
     def deriv_theta(self, y, t, theta):
@@ -84,7 +84,7 @@ class siers_simulator:
         self.dRdt = gammaR * self.IR #- omega * self.R  ### omega: rate waning immunity
         self.dDdt = gammaD * self.ID
 
-        self.N -= self.D0 #### beta_f considered the evolution 
+        #self.N = self.S - self.E - self.IR - self.ID - self.R - self.D
 
         return self.dSdt, self.dEdt, self.dIRdt, self.dIDdt, self.dRdt, self.dDdt
 
@@ -106,7 +106,7 @@ class siers_simulator:
         # Plot the data on three separate curves for S(t), I(t) and R(t)
         # Create inset of width 30% and height 40% of the parent axes' bounding box
         # at the lower left corner (loc=3)
-        self.axins2 = inset_axes(self.ax, width="30%", height="40%", loc=4)
+        self.axins2 = inset_axes(self.ax, width="30%", height="40%", loc=2)
         
         self.ax.plot(np.pad(self.E, (N, 0), 'constant'), '--', alpha=0.5, lw=2, label='Sim. Exposed')
         self.ax.plot(np.pad(self.ID + self.IR, (N, 0), 'constant'), 'r--', alpha=0.5, lw=2, label='Sim. Infected')
@@ -118,7 +118,7 @@ class siers_simulator:
         #.grid(b=True, which='major', c='w', lw=2, ls='-')
         
         self.ax.scatter(self.data['time'], self.data['deaths'], label = 'real Deaths')
-        self.ax.scatter(self.data['time'], self.data['recovered'], label = 'real Infected')
+        self.ax.scatter(self.data['time'], self.data['recovered'], label = 'real Recovered')
         self.ax.scatter(self.data['time'], self.data['cases']-self.data['recovered']-self.data['deaths'], label = 'real Infected')
         
         if not (self.Dates is None):
@@ -138,7 +138,6 @@ class siers_simulator:
         # Turn ticklabels of insets off
         self.axins2.tick_params(labelleft=False, labelbottom=False)
 
-    
     def train(self):
         print(self.bounds)
         self.tbeta_flag = 0
@@ -147,8 +146,6 @@ class siers_simulator:
             method = 'L-BFGS-B',
             bounds = self.bounds,
             x0 = [self.E0, self.delta, self.gammaR, self.gammaD, self.mu, self.beta0, self.alpha, self.beta_t0])#, self.alpha, self.beta_t0, self.epsilon, self.omega])
-
-        print(self.optimal)
         
         print()
         print('δ: Days for symptoms to appear: '+ str(1/self.delta))
@@ -166,7 +163,7 @@ class siers_simulator:
 
     def loss(self, point):
         self.E0, self.delta, self.gammaR, self.gammaD, self.mu, self.beta0, self.alpha, self.beta_t0  = point
-        print(self.E0, self.delta, self.gammaR, self.gammaD, self.mu, self.beta0, self.alpha, self.beta_t0)
+
         self.integrate()
         
         Infected = self.data['cases'].values - self.data['recovered'].values - self.data['deaths'].values
@@ -180,3 +177,19 @@ class siers_simulator:
         return np.sqrt((l31)**2 + ((l21))**2+ ((l11))**2) 
     
                 
+                
+                
+                
+                
+"""       
+def beta_f(self, t):
+
+calculate beta based on some function
+
+sigmoid = (1-1/(1 + np.exp(-(self.alpha * (t - self.beta_t0)))))
+return self.beta0 * (sigmoid * self.beta_P + (1 - self.beta_P))
+Infected_valid = self.t**(1/2)*(self.IR + self.ID - Infected)
+
+if self.NIeliminate_fit:
+Infected_valid = Infected_valid[self.NIeliminate_fit:]
+"""

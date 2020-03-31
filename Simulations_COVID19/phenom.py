@@ -29,7 +29,7 @@ class phenom_simulator(data_loader):
         self.location = 'classic'
 
         if data_table is not None:
-            self.get_data_from_object(data_table)
+            data_table = self.get_data_from_object(data_table)
         else:
             if self.load_flag == 'neherlab':
                 self.collect_data_neherlab(path=self.path, get_geo_loc = self.get_geo_loc)
@@ -56,43 +56,38 @@ class phenom_simulator(data_loader):
             self.data = self.data[self.data["location"].isin(self.location)]
 
             self.data['Country'] = self.data["country"]+', '+ self.data["location"]
-
+            
             self.countries = self.data['Country'].unique()
+            print(self.countries)
         return self.data
         
     def phenom_model(self, method, field = 'deaths'):
         self.models[method] = {}
         for i, country in enumerate(self.countries):
             with pm.Model() as model:
-                
-                mask = self.data['Country'] == country
-                
+                temp = self.data[(self.data.Country == country)].groupby(['time']).mean()[field].values
+                print(country,temp[0])
                 # TODO: Add if not external
+                #np.argmax(temp)*1/3, # or add 0
                 self.phenom_constrains = {
                                 'c1m':0.0000000000001,
                                 'c1M':10,
-                                'c2m':np.argmax(self.data[mask]['deaths'])*1/3, # or add 0
-                                'c2M':len(self.data[mask]['deaths'])*4,
-                                'c3m':np.max(self.data[mask]['deaths']), 
-                                'c3M':np.max(self.data[mask]['deaths'])*10}
-                if method == 'gompertz-model':
-                    self.phenom_constrains['c2m'] = 1
-                    
+                                'c2m':np.argmax(temp)*1/3, # or add 0
+                                'c2M':np.argmax(temp)*3,
+                                'c3m':np.max(temp), 
+                                'c3M':50000}
+                print('phenom_constrains: ', self.phenom_constrains)
                 const = {}
                 for cn in ['c1','c2','c3']:
                     const[cn] = pm.Uniform(cn, self.phenom_constrains[cn+'m'], self.phenom_constrains[cn+'M'])
 
                 sigma = pm.HalfNormal('sigma', 100., shape=1)
-
-                temp = self.data[mask][field].values
-
                 
-
                 Nrepeat = 10
                 T = np.arange(0, len(temp))
                 T = np.append(T,np.repeat(T[-Nrepeat:],Nrepeat*3))
                 temp = np.append(temp,np.repeat(temp[-Nrepeat:],Nrepeat*3))
-                
+                                
                 x = pm.Data("x",  T)
                 cases = pm.Data("y",  temp)
 
@@ -100,14 +95,14 @@ class phenom_simulator(data_loader):
                 if method == 'log-model':
                     pm.NegativeBinomial(
                         country, 
-                        const['c3']*(1/(1 + np.exp(-(const['c1'] * (-const['c2'] + x))))),
+                        const['c3']*(1/(1 + np.exp(-(const['c1'] * (x - const['c2']))))),
                         sigma, 
                         observed=cases)
                     
                 if method == 'gompertz-model':
                     pm.Poisson(
                         country, 
-                        const['c3']*np.exp(-np.exp(-const['c2']*(x-const['c1']))),
+                        const['c3']*np.exp(-np.exp(-const['c1']*(x - const['c2']))),
                         observed=cases)
                     
             self.models[method][country] = model
