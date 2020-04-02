@@ -58,7 +58,10 @@ class data_loader:
                     df_temp['location'] = location 
                                         
                     if location not in loc_dic.keys():
-                        locat = geolocator.geocode(location, timeout=None)    
+                        try:
+                            locat = geolocator.geocode(location, timeout=None)   
+                        except:
+                            print(location,'time out') 
                         if locat: 
                             loc_dic[location] = [locat.longitude,locat.latitude]
                         else:
@@ -73,8 +76,10 @@ class data_loader:
                     if country == 'Unitedstates':
                         df_temp['country'] = 'USA'
 
+                    #print(df_temp.tail(10))
                     # Ensure monotonicity and interpolate nans
                     df_temp = clean_monotonicity_interpol_nans(df_temp)   
+                    #print(df_temp.tail(10))                    
                     # Eliminate compodent that are above day of precission i.e hours...
                     df_temp['time'] = df_temp['time'].str.slice(0,10)
 

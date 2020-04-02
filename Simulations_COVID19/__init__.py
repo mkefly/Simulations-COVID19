@@ -18,7 +18,7 @@ from __future__ import absolute_import
 #from . import folder,...,...
 
 from .phenom import phenom_simulator
-from .siers import siers_simulator
+from .seirds import seirds_simulator
 from .utilitis import data_loader
 from Simulations_COVID19 import utilitis
 

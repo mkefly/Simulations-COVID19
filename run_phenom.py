@@ -29,7 +29,7 @@ path_out = './COVID19_dash/assets/data/'
 dataloader = SCovid19.data_loader() 
 dataloader.collect_data_neherlab(path) 
 
-
+'''
 phenomsirs = SCovid19.phenom_simulator(countries = list_countries, data_table = dataloader.data)
 for method in ['log-model', 'gompertz-model']:
     _ = phenomsirs.sample_posterior_predictive_model(method = method, field = 'deaths', samples = samples, number_days = number_days, n_steps=n_steps)
@@ -38,7 +38,7 @@ phenomsirs.save_table(path = path_out, file = 'phenom.json')
 
 
 
-'''
+
 Run beta-SIIERS exampe
 '''
 """
