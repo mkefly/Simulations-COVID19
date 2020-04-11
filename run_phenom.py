@@ -5,12 +5,12 @@ import Simulations_COVID19 as SCovid19
 import numpy as np 
 import pandas as pd 
 import matplotlib
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 ''' Load and collect data for the web, fit the phenom models and save the info for the web. ''' 
 
-samples = 30 
+samples = 300 
 number_days = 200 
 n_steps = 25
 list_countries = ['Spain','Italy','United states of america','United kingdom','Germany','Netherlands'] 
@@ -29,7 +29,6 @@ path_out = './COVID19_dash/assets/data/'
 dataloader = SCovid19.data_loader() 
 dataloader.collect_data_neherlab(path) 
 
-'''
 phenomsirs = SCovid19.phenom_simulator(countries = list_countries, data_table = dataloader.data)
 for method in ['log-model', 'gompertz-model']:
     _ = phenomsirs.sample_posterior_predictive_model(method = method, field = 'deaths', samples = samples, number_days = number_days, n_steps=n_steps)
@@ -38,9 +37,10 @@ phenomsirs.save_table(path = path_out, file = 'phenom.json')
 
 
 
-
+"""
 Run beta-SIIERS exampe
-'''
+
+"""
 """
 delta, gammaR, gammaD, mu, beta0, alpha, beta_t0, omega, epsilon  = 1/24, 1/24, 1/35, 0.48, 1.5, 1.0, 50.0, 0.0, 00.0
 
@@ -110,5 +110,3 @@ for country in ['Spain']:#,'Italy']:
  'Isle of man' 'Bahamas' 'Iraq' 'Albania' 'New zealand' 'Philippines'
  'Barbados' 'India' 'Peru' 'Singapore' 'Lebanon' 'USA']
  """
-
-# %%
